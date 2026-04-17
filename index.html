@@ -1,57 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tether P2P Bridge</title>
-    <script src="https://gstatic.com"></script>
-    <script src="https://gstatic.com"></script>
+    <title>Stealth P2P Bridge</title>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
+        * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; }
-        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 500px; margin: 0 auto; background: var(--panel); border: 1px solid #232E3C; }
-        header { height: 50px; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; }
+        
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 450px; margin: 0 auto; background: var(--panel); position: relative; }
+        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; letter-spacing: 1px; }
+        
         #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
-        .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; word-wrap: break-word; }
-        .mine { background: #2B5278; align-self: flex-end; }
-        .others { background: #182533; align-self: flex-start; border-left: 3px solid var(--eth); }
-        .input-box { height: 70px; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; }
+        .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; }
+        .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
+
+        .input-box { height: 70px; flex-shrink: 0; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; padding-bottom: env(safe-area-inset-bottom); }
         input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:active { opacity: 0.7; }
     </style>
 </head>
 <body>
 <div class="app">
-    <header id="status">CONNECTING TO BRIDGE...</header>
+    <header id="status">📡 ПОИСК УЗЛА...</header>
     <div id="chat"></div>
-    <div class="input-box">
-        <input type="text" id="msg" placeholder="Сообщение..." autocomplete="off">
+    <div class="input-area input-box">
+        <input type="text" id="msg" placeholder="Написать..." autocomplete="off">
         <button id="send">➤</button>
     </div>
 </div>
 
 <script>
-    // Публичный временный мост для стыковки
-    const firebaseConfig = { databaseURL: "https://firebaseio.com" };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database().ref('chat_room_1');
-    const USER_ID = Math.random().toString(36).substr(2, 5);
+    // Используем чистый WebSocket (встроен в браузер, никаких библиотек не надо)
+    // Мы подключаемся к анонимному "туннелю"
+    const ROOM = 'tether_p2p_global_v9'; // Смени это имя на любое свое для секретности
+    const socket = new WebSocket(`wss://://piesocket.com`);
+    const USER = 'U' + Math.random().toString(36).substr(2, 4);
 
     const chat = document.getElementById('chat');
     const msgInp = document.getElementById('msg');
+    const status = document.getElementById('status');
 
-    // Слушаем базу данных (мост)
-    db.limitToLast(20).on('child_added', (snapshot) => {
-        const data = snapshot.val();
-        if (data.u !== USER_ID) {
-            render(data.t, 'others');
-        }
-    });
+    socket.onopen = () => {
+        status.innerText = "📡 STEALTH ONLINE";
+        status.style.color = "#26A17B";
+    };
+
+    socket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            // Если сообщение пришло в нашу комнату и не от нас
+            if (data.room === ROOM && data.u !== USER) {
+                render(data.t, 'others');
+            }
+        } catch(e) {}
+    };
 
     function send() {
         const t = msgInp.value.trim();
-        if (!t) return;
-        db.push({ t, u: USER_ID, ts: Date.now() });
+        if (!t || socket.readyState !== WebSocket.OPEN) return;
+        
+        const payload = JSON.stringify({ room: ROOM, t: t, u: USER });
+        socket.send(payload);
+        
         render(t, 'mine');
         msgInp.value = '';
     }
@@ -65,8 +79,10 @@
     }
 
     document.getElementById('send').onclick = send;
-    msgInp.onkeypress = (e) => { if(e.key === 'Enter') send(); };
-    document.getElementById('status').innerText = "BRIDGE ONLINE";
+    msgInp.onkeypress = (e) => { if (e.key === 'Enter') send(); };
+    
+    // Авто-реконнект при смене сети (с 4G на Wi-Fi и обратно)
+    socket.onclose = () => { status.innerText = "📡 ПЕРЕЗАГРУЗКА..."; setTimeout(() => location.reload(), 2000); };
 </script>
 </body>
 </html>
