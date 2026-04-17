@@ -2,28 +2,28 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stealth Chat v2.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stealth Messenger</title>
+    <!-- Подключаем библиотеку для связи (маскировка под HTTPS) -->
+    <script src="https://unpkg.com"></script>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; height: 100vh; overflow: hidden; }
-        .card { background: var(--panel); padding: 15px; border-radius: 12px; width: 100%; max-width: 400px; display: flex; flex-direction: column; border: 1px solid #232E3C; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
-        header { color: var(--eth); font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 14px; text-transform: uppercase; border-bottom: 1px solid #232E3C; padding-bottom: 10px; letter-spacing: 1px; }
-        #chat { flex: 1; overflow-y: auto; background: #0c121a; padding: 12px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; border: 1px solid #232E3C; }
-        .m { padding: 10px 15px; border-radius: 14px; max-width: 80%; font-size: 14px; line-height: 1.4; word-break: break-all; animation: slide 0.2s ease-out; }
-        @keyframes slide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; position: fixed; }
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 500px; margin: 0 auto; background: var(--panel); }
+        header { padding: 15px; text-align: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 14px; }
+        #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
+        .msg { padding: 10px 14px; border-radius: 14px; max-width: 80%; font-size: 15px; line-height: 1.4; word-break: break-all; }
         .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
         .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
-        .input-area { display: flex; gap: 8px; }
-        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 12px; border-radius: 10px; outline: none; transition: 0.2s; }
-        input:focus { border-color: var(--eth); }
-        button { background: var(--eth); color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        .input-area { padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; padding-bottom: env(safe-area-inset-bottom); }
+        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 12px; border-radius: 10px; outline: none; font-size: 16px; }
+        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <header id="status">STEALTH NODE ACTIVE</header>
+<div class="app">
+    <header id="status">📡 ИНИЦИАЛИЗАЦИЯ...</header>
     <div id="chat"></div>
     <div class="input-area">
         <input type="text" id="msg-input" placeholder="Сообщение..." autocomplete="off">
@@ -32,67 +32,46 @@
 </div>
 
 <script>
-    // Публичный защищенный реле-узел (маскировка под HTTPS)
-    const relay = 'wss://echo.websocket.org'; 
-    let socket;
+    // Публичный ID для создания канала связи
+    const drone = new Scaledrone('y78V9NqWpP6mXm0R');
+    const roomName = 'observable-stealth-chat-room-1'; 
+    let room;
 
-    function connect() {
-        socket = new WebSocket(relay);
+    const input = document.getElementById('msg-input');
+    const chat = document.getElementById('chat');
 
-        socket.onopen = () => {
-            document.getElementById('status').innerText = "ONLINE (SECURE)";
-            document.getElementById('status').style.color = "#26A17B";
-        };
-
-        socket.onmessage = (e) => {
-            if (typeof e.data === "string") {
-                // Имитация получения данных от другого участника
-                renderMsg(e.data, "others");
-            }
-        };
-
-        socket.onclose = () => {
-            document.getElementById('status').innerText = "RECONNECTING...";
-            setTimeout(connect, 2000);
-        };
-    }
-
-    // Исправленная функция отправки (работает и на телефонах, и на ПК)
-    function sendMessage() {
-        const input = document.getElementById('msg-input');
-        const val = input.value.trim();
+    drone.on('open', error => {
+        if (error) return console.error(error);
+        document.getElementById('status').innerText = "📡 КАНАЛ ЗАЩИЩЕН (STEALTH)";
+        document.getElementById('status').style.color = "#26A17B";
         
-        if (val && socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(val);
-            renderMsg(val, "mine");
+        room = drone.subscribe(roomName);
+        room.on('data', (data, member) => {
+            if (member.id !== drone.clientId) {
+                addMsg(data, 'others');
+            }
+        });
+    });
+
+    function sendMessage() {
+        const text = input.value.trim();
+        if (text && room) {
+            drone.publish({ room: roomName, message: text });
+            addMsg(text, 'mine');
             input.value = '';
-            input.focus();
         }
     }
 
-    // Слушатели событий
-    document.getElementById('send-btn').addEventListener('click', (e) => {
-        e.preventDefault();
-        sendMessage();
-    });
+    document.getElementById('send-btn').onclick = sendMessage;
+    input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
 
-    document.getElementById('msg-input').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    function renderMsg(txt, side) {
+    function addMsg(text, type) {
         const d = document.createElement('div');
-        d.className = `m ${side}`;
-        d.innerText = txt;
-        const c = document.getElementById('chat');
-        c.appendChild(d);
-        c.scrollTop = c.scrollHeight;
+        d.className = `msg ${type}`;
+        d.innerText = text;
+        chat.appendChild(d);
+        chat.scrollTop = chat.scrollHeight;
     }
-
-    connect();
 </script>
 </body>
 </html>
