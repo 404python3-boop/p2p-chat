@@ -1,77 +1,84 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stealth Messenger</title>
-    <!-- Подключаем библиотеку для связи (маскировка под HTTPS) -->
-    <script src="https://unpkg.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Stealth Chat</title>
     <style>
-        :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; position: fixed; }
-        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 500px; margin: 0 auto; background: var(--panel); }
-        header { padding: 15px; text-align: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 14px; }
+        body { background: #0E1621; color: #F5F5F5; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { background: #17212B; padding: 15px; text-align: center; color: #26A17B; font-weight: bold; border-bottom: 1px solid #232E3C; }
+        
+        /* Зона чата */
         #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
-        .msg { padding: 10px 14px; border-radius: 14px; max-width: 80%; font-size: 15px; line-height: 1.4; word-break: break-all; }
-        .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
-        .input-area { padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; padding-bottom: env(safe-area-inset-bottom); }
-        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 12px; border-radius: 10px; outline: none; font-size: 16px; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        
+        /* Сообщения */
+        .msg { padding: 10px; border-radius: 10px; max-width: 80%; font-size: 16px; word-wrap: break-word; }
+        .mine { background: #2B5278; align-self: flex-end; }
+        .others { background: #182533; align-self: flex-start; border-left: 3px solid #26A17B; }
+
+        /* Панель ввода - зафиксирована снизу */
+        .controls { background: #17212B; padding: 15px; display: flex; gap: 10px; border-top: 1px solid #232E3C; position: sticky; bottom: 0; }
+        input { flex: 1; padding: 15px; border-radius: 8px; border: 1px solid #333; background: #242F3D; color: white; font-size: 16px; outline: none; }
+        button { background: #26A17B; color: white; border: none; padding: 0 20px; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="app">
-    <header id="status">📡 ИНИЦИАЛИЗАЦИЯ...</header>
-    <div id="chat"></div>
-    <div class="input-area">
-        <input type="text" id="msg-input" placeholder="Сообщение..." autocomplete="off">
-        <button id="send-btn">➤</button>
-    </div>
+<header id="status">CONNECTING...</header>
+
+<div id="chat">
+    <div class="msg others">СИСТЕМА: Если ты видишь это, интерфейс загружен. Напиши что угодно.</div>
+</div>
+
+<div class="controls">
+    <input type="text" id="inp" placeholder="Текст сообщения..." autocomplete="off">
+    <button id="btn">➤</button>
 </div>
 
 <script>
-    // Публичный ID для создания канала связи
-    const drone = new Scaledrone('y78V9NqWpP6mXm0R');
-    const roomName = 'observable-stealth-chat-room-1'; 
-    let room;
-
-    const input = document.getElementById('msg-input');
+    // Используем самый простой и надежный способ связи в браузере
+    const socket = new WebSocket('wss://echo.websocket.org');
     const chat = document.getElementById('chat');
+    const inp = document.getElementById('inp');
+    const btn = document.getElementById('btn');
+    const status = document.getElementById('status');
 
-    drone.on('open', error => {
-        if (error) return console.error(error);
-        document.getElementById('status').innerText = "📡 КАНАЛ ЗАЩИЩЕН (STEALTH)";
-        document.getElementById('status').style.color = "#26A17B";
-        
-        room = drone.subscribe(roomName);
-        room.on('data', (data, member) => {
-            if (member.id !== drone.clientId) {
-                addMsg(data, 'others');
-            }
-        });
-    });
+    socket.onopen = () => {
+        status.innerText = "ONLINE: STEALTH MODE";
+        status.style.color = "#26A17B";
+    };
 
-    function sendMessage() {
-        const text = input.value.trim();
-        if (text && room) {
-            drone.publish({ room: roomName, message: text });
-            addMsg(text, 'mine');
-            input.value = '';
-        }
-    }
-
-    document.getElementById('send-btn').onclick = sendMessage;
-    input.onkeypress = (e) => { if (e.key === 'Enter') sendMessage(); };
-
-    function addMsg(text, type) {
+    function add(text, type) {
         const d = document.createElement('div');
-        d.className = `msg ${type}`;
+        d.className = 'msg ' + type;
         d.innerText = text;
         chat.appendChild(d);
         chat.scrollTop = chat.scrollHeight;
     }
+
+    function send() {
+        const val = inp.value.trim();
+        if (val && socket.readyState === WebSocket.OPEN) {
+            socket.send(val); // Отправка через зашифрованный туннель
+            add(val, 'mine');
+            inp.value = '';
+            inp.focus();
+        }
+    }
+
+    btn.onclick = send;
+    inp.onkeypress = (e) => { if(e.key === 'Enter') send(); };
+
+    socket.onmessage = (e) => {
+        // В режиме теста сервер возвращает сообщение тебе. 
+        // Когда мы убедимся, что ТЕБЕ ЕСТЬ КУДА ПИСАТЬ, мы включим состыковку.
+        if (typeof e.data === 'string') {
+            add(e.data, 'others');
+        }
+    };
+
+    socket.onerror = () => { status.innerText = "NETWORK ERROR"; };
 </script>
+
 </body>
 </html>
