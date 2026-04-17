@@ -1,103 +1,154 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Stealth Messenger v1.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tether Stealth Node</title>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; }
-        header { background: var(--panel); padding: 15px; text-align: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; }
-        #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
-        .msg { padding: 10px 14px; border-radius: 12px; max-width: 80%; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
+        
+        * { box-sizing: border-box; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: var(--bg); color: var(--text); 
+            font-family: -apple-system, system-ui, sans-serif;
+            overflow: hidden; 
+        }
+
+        /* Адаптивный контейнер */
+        .app-container {
+            display: flex; flex-direction: column;
+            height: 100vh; width: 100%; max-width: 500px; 
+            margin: 0 auto; background: var(--panel);
+            position: relative;
+        }
+
+        header { 
+            padding: 15px; text-align: center; color: var(--eth); 
+            font-weight: bold; border-bottom: 1px solid #232E3C; 
+            font-size: 14px; letter-spacing: 1px;
+        }
+
+        /* Окно чата с автоматической подгонкой */
+        #chat { 
+            flex: 1; overflow-y: auto; padding: 15px;
+            display: flex; flex-direction: column; gap: 10px;
+            background: #0c121a; scroll-behavior: smooth;
+        }
+
+        .m { 
+            padding: 10px 14px; border-radius: 14px; max-width: 80%; 
+            font-size: 15px; line-height: 1.4; word-wrap: break-word;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
         .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
         .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
-        .controls { background: var(--panel); padding: 15px; display: flex; gap: 10px; border-top: 1px solid #232E3C; }
-        input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #242F3D; color: white; font-size: 16px; outline: none; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* Панель ввода всегда снизу */
+        .input-area { 
+            padding: 10px 15px; background: var(--panel);
+            display: flex; gap: 10px; border-top: 1px solid #232E3C;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+
+        input { 
+            flex: 1; background: #242F3D; border: 1px solid #333; 
+            color: white; padding: 12px; border-radius: 10px; 
+            outline: none; font-size: 16px; 
+        }
+        input:focus { border-color: var(--eth); }
+
+        button { 
+            background: var(--eth); color: white; border: none; 
+            padding: 0 20px; border-radius: 10px; font-weight: bold;
+            cursor: pointer; transition: 0.2s;
+        }
+        button:active { opacity: 0.7; }
     </style>
 </head>
 <body>
 
-<header id="status">📡 STEALTH NODE: ПОДКЛЮЧЕНИЕ...</header>
-
-<div id="chat"></div>
-
-<div class="controls">
-    <input type="text" id="inp" placeholder="Введите сообщение..." autocomplete="off">
-    <button id="btn">➤</button>
+<div class="app-container">
+    <header id="status">📡 ИНИЦИАЛИЗАЦИЯ STEALTH...</header>
+    <div id="chat"></div>
+    <div class="input-area">
+        <input type="text" id="msg" placeholder="Сообщение..." autocomplete="off">
+        <button id="send">➤</button>
+    </div>
 </div>
 
 <script>
-    // Секретный ID комнаты (измени на любой другой для приватности)
-    const ROOM_ID = 'tether_p2p_secret_999';
-    const userID = Math.random().toString(36).substr(2, 9);
-    
-    // Используем бесплатный публичный сервис для пересылки сообщений (маскировка под HTTPS)
-    const pubUrl = `https://ntfy.sh{ROOM_ID}`;
+    // Используем максимально надежный протокол опроса для обхода любых блокировок
+    const ROOM = 'tether_p2p_v2_99'; 
+    const USER = 'U' + Math.random().toString(36).substr(2, 5);
+    const API = `https://ntfy.sh{ROOM}`;
 
     const chat = document.getElementById('chat');
-    const inp = document.getElementById('inp');
+    const msgInput = document.getElementById('msg');
     const status = document.getElementById('status');
 
-    // Функция получения сообщений (слушаем комнату)
-    async function listen() {
-        status.innerText = "📡 STEALTH NODE: В СЕТИ";
-        const response = await fetch(`${pubUrl}/sse`);
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+    let lastTimestamp = 0;
 
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value);
-            
-            // Обработка данных из потока
-            const lines = chunk.split('\n');
-            lines.forEach(line => {
-                if (line.startsWith('data:')) {
-                    try {
-                        const data = JSON.parse(line.replace('data:', ''));
-                        if (data.user !== userID) {
-                            addMsg(data.text, 'others');
-                        }
-                    } catch (e) {}
-                }
+    // Функция отправки (маскировка под POST-запрос к API)
+    async function send() {
+        const text = msgInput.value.trim();
+        if (!text) return;
+
+        msgInput.value = '';
+        render(text, 'mine');
+
+        try {
+            await fetch(API, {
+                method: 'POST',
+                body: JSON.stringify({t: text, u: USER, ts: Date.now()}),
+                headers: { 'Title': 'Message' }
             });
+        } catch (e) {
+            status.innerText = "ОШИБКА ОТПРАВКИ";
         }
     }
 
-    // Функция отправки
-    async function send() {
-        const text = inp.value.trim();
-        if (!text) return;
-
-        addMsg(text, 'mine');
-        inp.value = '';
-
-        await fetch(pubUrl, {
-            method: 'POST',
-            body: JSON.stringify({ text, user: userID })
-        });
+    // Оптимизированный цикл получения данных (Long Polling)
+    async function poll() {
+        try {
+            status.innerText = "📡 STEALTH: ONLINE";
+            status.style.color = "#26A17B";
+            
+            const resp = await fetch(`${API}/json?poll=1&since=now`);
+            const messages = await resp.text();
+            
+            messages.split('\n').forEach(line => {
+                if (!line.trim()) return;
+                const data = JSON.parse(line);
+                try {
+                    const payload = JSON.parse(data.message);
+                    if (payload.u !== USER && payload.ts > lastTimestamp) {
+                        render(payload.t, 'others');
+                        lastTimestamp = payload.ts;
+                    }
+                } catch(e) {}
+            });
+        } catch (e) {
+            console.log("Retry poll...");
+        }
+        setTimeout(poll, 1000); // Интервал опроса - 1 сек (как в первых мессенджерах)
     }
 
-    function addMsg(txt, type) {
+    function render(txt, side) {
         const d = document.createElement('div');
-        d.className = 'msg ' + type;
+        d.className = `m ${side}`;
         d.innerText = txt;
         chat.appendChild(d);
         chat.scrollTop = chat.scrollHeight;
     }
 
-    document.getElementById('btn').onclick = send;
-    inp.onkeypress = (e) => { if (e.key === 'Enter') send(); };
+    document.getElementById('send').onclick = send;
+    msgInput.onkeypress = (e) => { if(e.key === 'Enter') send(); };
 
-    // Запуск прослушивания
-    listen().catch(() => {
-        status.innerText = "ОШИБКА СЕТИ";
-        status.style.color = "red";
-    });
+    // Запуск
+    poll();
 </script>
-
 </body>
 </html>
