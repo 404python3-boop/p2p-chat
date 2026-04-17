@@ -1,36 +1,28 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stealth Messenger v4</title>
-    <!-- Подключаем только одну надежную библиотеку для связи -->
-    <script src="https://jsdelivr.net"></script>
+    <title>Tether P2P Bridge</title>
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
-        * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; }
-        
-        /* Контейнер с жесткой фиксацией */
-        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 450px; margin: 0 auto; background: var(--panel); border: 1px solid #232E3C; }
-        
-        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; }
-        
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 500px; margin: 0 auto; background: var(--panel); border: 1px solid #232E3C; }
+        header { height: 50px; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; }
         #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
-        
-        .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; }
+        .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; word-wrap: break-word; }
         .mine { background: #2B5278; align-self: flex-end; }
         .others { background: #182533; align-self: flex-start; border-left: 3px solid var(--eth); }
-
-        .input-box { height: 70px; flex-shrink: 0; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; }
+        .input-box { height: 70px; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; }
         input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
         button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-
 <div class="app">
-    <header id="status">📡 ИНИЦИАЛИЗАЦИЯ...</header>
+    <header id="status">CONNECTING TO BRIDGE...</header>
     <div id="chat"></div>
     <div class="input-box">
         <input type="text" id="msg" placeholder="Сообщение..." autocomplete="off">
@@ -39,45 +31,29 @@
 </div>
 
 <script>
-    // Публичные ключи для мгновенной связи (маскировка под облачную базу)
-    const SB_URL = 'https://supabase.co'; 
-    const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cmVveXh0dnh0YXhmYXl0YXhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTMzODU0MDAsImV4cCI6MjAzMTM4NTQwMH0.7';
-    const supabase = supabase.createClient(SB_URL, SB_KEY);
-
-    const ROOM = 'p2p_global_stealth';
-    const USER = 'ID' + Math.random().toString(36).substr(2, 4);
+    // Публичный временный мост для стыковки
+    const firebaseConfig = { databaseURL: "https://firebaseio.com" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref('chat_room_1');
+    const USER_ID = Math.random().toString(36).substr(2, 5);
 
     const chat = document.getElementById('chat');
     const msgInp = document.getElementById('msg');
-    const status = document.getElementById('status');
 
-    // Подключаемся к "эфиру"
-    const channel = supabase.channel(ROOM);
-
-    channel
-        .on('broadcast', { event: 'msg' }, ({ payload }) => {
-            if (payload.u !== USER) render(payload.t, 'others');
-        })
-        .subscribe((s) => {
-            if (s === 'SUBSCRIBED') {
-                status.innerText = "📡 STEALTH ONLINE";
-                status.style.color = "#26A17B";
-            }
-        });
+    // Слушаем базу данных (мост)
+    db.limitToLast(20).on('child_added', (snapshot) => {
+        const data = snapshot.val();
+        if (data.u !== USER_ID) {
+            render(data.t, 'others');
+        }
+    });
 
     function send() {
         const t = msgInp.value.trim();
         if (!t) return;
-        
-        channel.send({
-            type: 'broadcast',
-            event: 'msg',
-            payload: { t, u: USER }
-        });
-        
+        db.push({ t, u: USER_ID, ts: Date.now() });
         render(t, 'mine');
         msgInp.value = '';
-        msgInp.focus();
     }
 
     function render(txt, side) {
@@ -89,7 +65,8 @@
     }
 
     document.getElementById('send').onclick = send;
-    msgInp.onkeypress = (e) => { if (e.key === 'Enter') send(); };
+    msgInp.onkeypress = (e) => { if(e.key === 'Enter') send(); };
+    document.getElementById('status').innerText = "BRIDGE ONLINE";
 </script>
 </body>
 </html>
