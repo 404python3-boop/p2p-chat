@@ -3,107 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Tether Mesh Messenger</title>
-    <!-- Библиотека сама загрузится в браузер при открытии ссылки -->
-    <script src="https://jsdelivr.net"></script>
+    <title>Stealth Mesh Chat</title>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; position: fixed; }
-        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 500px; margin: 0 auto; background: var(--panel); }
-        header { padding: 15px; text-align: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 12px; letter-spacing: 1px; }
-        #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; background: #0c121a; }
-        .m { padding: 10px 14px; border-radius: 14px; max-width: 80%; font-size: 15px; line-height: 1.4; word-break: break-all; }
+        
+        .app { position: absolute; top:0; left:0; right:0; bottom:0; display: flex; flex-direction: column; max-width: 500px; margin: 0 auto; background: var(--panel); border-left: 1px solid #232E3C; border-right: 1px solid #232E3C; }
+        header { height: 55px; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 14px; letter-spacing: 1px; flex-shrink: 0; }
+        
+        #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 12px; background: #0c121a; }
+        .m { padding: 10px 14px; border-radius: 16px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
         .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
         .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
-        .input-area { padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; padding-bottom: env(safe-area-inset-bottom); }
-        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 12px; border-radius: 10px; outline: none; font-size: 16px; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+
+        .input-box { height: 75px; padding: 12px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
+        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
-
 <div class="app">
-    <header id="status">ПОИСК УЗЛОВ...</header>
+    <header id="status">📡 ИЩЕМ СОБЕСЕДНИКА...</header>
     <div id="chat"></div>
-    <div class="input-area">
-        <input type="text" id="msg-input" placeholder="Сообщение..." autocomplete="off">
-        <button id="btn-send">➤</button>
+    <div class="input-box">
+        <input type="text" id="msg" placeholder="Сообщение..." autocomplete="off">
+        <button id="send">➤</button>
     </div>
 </div>
 
 <script>
-    // Подключаемся к распределенной P2P сети
-    const gun = Gun([
-        'https://herokuapp.com',
-        'https://wall.org'
-    ]);
-
-    // Твоя секретная комната (можешь изменить название)
-    const room = gun.get('tether_mesh_v1_room');
-    const myID = 'U' + Math.random().toString(36).substr(2, 5);
-    const joinTime = Date.now();
+    // Маскируем трафик под API-запросы (никаких библиотек)
+    const CHANNEL = 'tether_stealth_v5_final'; 
+    const MY_ID = 'U' + Math.random().toString(36).substr(2, 5);
+    const API = `https://ntfy.sh{CHANNEL}`;
 
     const chat = document.getElementById('chat');
+    const msgInp = document.getElementById('msg');
     const status = document.getElementById('status');
-    const input = document.getElementById('msg-input');
 
-    // Функция проверки лидера
-    function checkLeader() {
-        room.get('nodes').get(myID).put({ time: joinTime, lastSeen: Date.now() });
+    let history = new Set();
+
+    // Отправка (каждый пользователь шлет пакет в общую комнату)
+    async function send() {
+        const t = msgInp.value.trim();
+        if (!t) return;
         
-        let oldest = { id: myID, time: joinTime };
+        const payload = { id: Math.random(), u: MY_ID, t: t, ts: Date.now() };
+        msgInp.value = '';
+        render(t, 'mine');
 
-        room.get('nodes').map().once((node, id) => {
-            if (!node) return;
-            // Если узел не подавал признаков жизни больше 10 секунд - он вышел
-            if (Date.now() - node.lastSeen > 10000) return;
-
-            if (node.time < oldest.time) {
-                oldest = { id: id, time: node.time };
-            }
-
-            if (oldest.id === myID) {
-                status.innerText = "ТЫ - ЛИДЕР (SERVER MODE)";
-                status.style.color = "#00ff00";
-            } else {
-                status.innerText = "ЛИДЕР: " + oldest.id + " (CLIENT MODE)";
-                status.style.color = "#26A17B";
-            }
-        });
-    }
-
-    // Слушаем сообщения
-    room.get('messages').map().once((data) => {
-        if (!data || !data.text) return;
-        if (document.getElementById(data.id)) return; // Защита от дублей
-
-        const div = document.createElement('div');
-        div.id = data.id;
-        div.className = `m ${data.sender === myID ? 'mine' : 'others'}`;
-        div.innerText = data.text;
-        chat.appendChild(div);
-        chat.scrollTop = chat.scrollHeight;
-    });
-
-    function sendMessage() {
-        const text = input.value.trim();
-        if (text) {
-            room.get('messages').set({
-                text: text,
-                sender: myID,
-                id: Math.random().toString(36).substr(2, 9),
-                time: Date.now()
+        try {
+            await fetch(API, { 
+                method: 'POST', 
+                body: JSON.stringify(payload),
+                headers: { 'Title': 'P2P_MSG' }
             });
-            input.value = '';
-        }
+        } catch(e) { console.error("Send error"); }
     }
 
-    document.getElementById('btn-send').onclick = sendMessage;
-    input.onkeypress = (e) => { if(e.key === 'Enter') sendMessage(); };
+    // Получение (постоянный опрос сети)
+    async function poll() {
+        try {
+            // Long Polling: ждем новых данных 20 секунд
+            const r = await fetch(`${API}/json?poll=1&since=now`);
+            const lines = (await r.text()).split('\n');
+            
+            lines.forEach(l => {
+                if (!l.trim()) return;
+                const raw = JSON.parse(l);
+                try {
+                    const data = JSON.parse(raw.message);
+                    // Если сообщение не от нас и мы его еще не видели
+                    if (data.u !== MY_ID && !history.has(data.id)) {
+                        history.add(data.id);
+                        render(data.t, 'others');
+                        status.innerText = "📡 СОБЕСЕДНИК В СЕТИ";
+                    }
+                } catch(e) {}
+            });
+        } catch(e) { /* Игнорируем таймауты */ }
+        
+        // Сразу запускаем следующий цикл опроса
+        setTimeout(poll, 100); 
+    }
 
-    // Запускаем выборы каждые 3 секунды
-    setInterval(checkLeader, 3000);
-    checkLeader();
+    function render(txt, side) {
+        const d = document.createElement('div');
+        d.className = 'm ' + side;
+        d.innerText = txt;
+        chat.appendChild(d);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.getElementById('send').onclick = send;
+    msgInp.onkeypress = (e) => { if(e.key === 'Enter') send() };
+
+    // Старт системы
+    status.innerText = "📡 STEALTH ONLINE";
+    poll();
 </script>
 </body>
 </html>
