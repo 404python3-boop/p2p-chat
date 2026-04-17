@@ -3,30 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stealth Mesh Chat</title>
+    <title>Stealth Messenger v4</title>
+    <!-- Подключаем только одну надежную библиотеку для связи -->
+    <script src="https://jsdelivr.net"></script>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; position: fixed; }
+        * { box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; }
         
-        .app { position: absolute; top:0; left:0; right:0; bottom:0; display: flex; flex-direction: column; max-width: 500px; margin: 0 auto; background: var(--panel); border-left: 1px solid #232E3C; border-right: 1px solid #232E3C; }
-        header { height: 55px; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 14px; letter-spacing: 1px; flex-shrink: 0; }
+        /* Контейнер с жесткой фиксацией */
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 450px; margin: 0 auto; background: var(--panel); border: 1px solid #232E3C; }
         
-        #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 12px; background: #0c121a; }
-        .m { padding: 10px 14px; border-radius: 16px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; animation: fadeIn 0.2s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; }
         
-        .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
+        #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
+        
+        .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; }
+        .mine { background: #2B5278; align-self: flex-end; }
+        .others { background: #182533; align-self: flex-start; border-left: 3px solid var(--eth); }
 
-        .input-box { height: 75px; padding: 12px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; flex-shrink: 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+        .input-box { height: 70px; flex-shrink: 0; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; }
         input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
+
 <div class="app">
-    <header id="status">📡 ИЩЕМ СОБЕСЕДНИКА...</header>
+    <header id="status">📡 ИНИЦИАЛИЗАЦИЯ...</header>
     <div id="chat"></div>
     <div class="input-box">
         <input type="text" id="msg" placeholder="Сообщение..." autocomplete="off">
@@ -35,59 +39,45 @@
 </div>
 
 <script>
-    // Маскируем трафик под API-запросы (никаких библиотек)
-    const CHANNEL = 'tether_stealth_v5_final'; 
-    const MY_ID = 'U' + Math.random().toString(36).substr(2, 5);
-    const API = `https://ntfy.sh{CHANNEL}`;
+    // Публичные ключи для мгновенной связи (маскировка под облачную базу)
+    const SB_URL = 'https://supabase.co'; 
+    const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5cmVveXh0dnh0YXhmYXl0YXhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTMzODU0MDAsImV4cCI6MjAzMTM4NTQwMH0.7';
+    const supabase = supabase.createClient(SB_URL, SB_KEY);
+
+    const ROOM = 'p2p_global_stealth';
+    const USER = 'ID' + Math.random().toString(36).substr(2, 4);
 
     const chat = document.getElementById('chat');
     const msgInp = document.getElementById('msg');
     const status = document.getElementById('status');
 
-    let history = new Set();
+    // Подключаемся к "эфиру"
+    const channel = supabase.channel(ROOM);
 
-    // Отправка (каждый пользователь шлет пакет в общую комнату)
-    async function send() {
+    channel
+        .on('broadcast', { event: 'msg' }, ({ payload }) => {
+            if (payload.u !== USER) render(payload.t, 'others');
+        })
+        .subscribe((s) => {
+            if (s === 'SUBSCRIBED') {
+                status.innerText = "📡 STEALTH ONLINE";
+                status.style.color = "#26A17B";
+            }
+        });
+
+    function send() {
         const t = msgInp.value.trim();
         if (!t) return;
         
-        const payload = { id: Math.random(), u: MY_ID, t: t, ts: Date.now() };
-        msgInp.value = '';
-        render(t, 'mine');
-
-        try {
-            await fetch(API, { 
-                method: 'POST', 
-                body: JSON.stringify(payload),
-                headers: { 'Title': 'P2P_MSG' }
-            });
-        } catch(e) { console.error("Send error"); }
-    }
-
-    // Получение (постоянный опрос сети)
-    async function poll() {
-        try {
-            // Long Polling: ждем новых данных 20 секунд
-            const r = await fetch(`${API}/json?poll=1&since=now`);
-            const lines = (await r.text()).split('\n');
-            
-            lines.forEach(l => {
-                if (!l.trim()) return;
-                const raw = JSON.parse(l);
-                try {
-                    const data = JSON.parse(raw.message);
-                    // Если сообщение не от нас и мы его еще не видели
-                    if (data.u !== MY_ID && !history.has(data.id)) {
-                        history.add(data.id);
-                        render(data.t, 'others');
-                        status.innerText = "📡 СОБЕСЕДНИК В СЕТИ";
-                    }
-                } catch(e) {}
-            });
-        } catch(e) { /* Игнорируем таймауты */ }
+        channel.send({
+            type: 'broadcast',
+            event: 'msg',
+            payload: { t, u: USER }
+        });
         
-        // Сразу запускаем следующий цикл опроса
-        setTimeout(poll, 100); 
+        render(t, 'mine');
+        msgInp.value = '';
+        msgInp.focus();
     }
 
     function render(txt, side) {
@@ -99,11 +89,7 @@
     }
 
     document.getElementById('send').onclick = send;
-    msgInp.onkeypress = (e) => { if(e.key === 'Enter') send() };
-
-    // Старт системы
-    status.innerText = "📡 STEALTH ONLINE";
-    poll();
+    msgInp.onkeypress = (e) => { if (e.key === 'Enter') send(); };
 </script>
 </body>
 </html>
