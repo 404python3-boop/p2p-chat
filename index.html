@@ -3,94 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P Stealth Node</title>
+    <title>Stealth P2P Node</title>
+    <!-- Библиотека Gun.js маскирует трафик под обычные WebSocket/HTTPS запросы -->
+    <script src="https://jsdelivr.net"></script>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; display: flex; justify-content: center; padding: 15px; margin: 0; }
-        .card { background: var(--panel); padding: 20px; border-radius: 12px; width: 100%; max-width: 380px; border: 1px solid #232E3C; display: flex; flex-direction: column; }
-        header { color: var(--eth); font-weight: bold; text-align: center; margin-bottom: 20px; font-size: 18px; text-transform: uppercase; }
-        textarea { width: 100%; background: #0c121a; border: 1px solid #333; color: #00ff00; border-radius: 8px; padding: 10px; font-size: 10px; height: 70px; box-sizing: border-box; resize: none; outline: none; font-family: monospace; cursor: pointer; }
-        textarea:focus { border-color: var(--eth); }
-        button { width: 100%; background: var(--eth); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 8px 0; }
-        #chat { height: 250px; overflow-y: auto; background: #0c121a; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #232E3C; display: none; flex-direction: column; gap: 8px; }
-        .m { padding: 8px 12px; border-radius: 10px; max-width: 85%; font-size: 14px; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; display: flex; justify-content: center; padding: 10px; margin: 0; height: 100vh; }
+        .card { background: var(--panel); padding: 15px; border-radius: 12px; width: 100%; max-width: 400px; display: flex; flex-direction: column; border: 1px solid #232E3C; }
+        header { color: var(--eth); font-weight: bold; text-align: center; margin-bottom: 10px; font-size: 14px; text-transform: uppercase; }
+        #chat { flex: 1; overflow-y: auto; background: #0c121a; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; border: 1px solid #232E3C; }
+        .m { padding: 8px 12px; border-radius: 10px; max-width: 85%; font-size: 14px; line-height: 1.4; word-break: break-all; }
         .mine { background: #2B5278; align-self: flex-end; }
-        .others { background: #182533; align-self: flex-start; }
-        .input-group { display: none; gap: 8px; }
+        .others { background: #182533; align-self: flex-start; border: 1px solid var(--eth); }
+        .input-area { display: flex; gap: 5px; }
         input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 12px; border-radius: 8px; outline: none; }
+        button { background: var(--eth); color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .room-info { font-size: 10px; color: #6E7C8A; text-align: center; margin-bottom: 10px; }
     </style>
 </head>
 <body>
+
 <div class="card">
-    <header id="status">P2P NODE READY</header>
-    <div id="setup">
-        <button id="btn-offer">1. СГЕНЕРИРОВАТЬ КЛЮЧ</button>
-        <textarea id="out-key" readonly placeholder="Твой ключ..."></textarea>
-        <textarea id="in-key" style="margin-top:10px" placeholder="Вставь ключ друга..."></textarea>
-        <button id="btn-answer">2. ПОДКЛЮЧИТЬСЯ</button>
-    </div>
+    <header>NODE ACTIVE: SECURE LAYER</header>
+    <div class="room-info">Канал: <b id="room-name">tether-stealth-99</b></div>
     <div id="chat"></div>
-    <div id="input-group" class="input-group">
-        <input type="text" id="msg-input" placeholder="Сообщение...">
-        <button id="btn-send" style="width: 60px;">-></button>
+    <div class="input-area">
+        <input type="text" id="msg" placeholder="Сообщение..." autocomplete="off">
+        <button id="send">-></button>
     </div>
 </div>
 
 <script>
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:://google.com" }] });
-    let dc;
+    // Подключаемся к нескольким публичным реле-узлам для обхода блокировок
+    const gun = Gun([
+        'https://herokuapp.com',
+        'https://wall.org'
+    ]);
 
-    function setupDC(channel) {
-        dc = channel;
-        dc.onopen = () => {
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('chat').style.display = 'flex';
-            document.getElementById('input-group').style.display = 'flex';
-            document.getElementById('status').innerText = "ONLINE";
-        };
-        dc.onmessage = e => render(e.data, 'others');
+    // Уникальный ID твоей комнаты. Измени его на любой случайный, чтобы создать приватный чат.
+    const room = gun.get('tether-stealth-private-room-001'); 
+    const userID = Math.random().toString(36).substr(2, 9);
+
+    const input = document.getElementById('msg');
+    const chatDiv = document.getElementById('chat');
+
+    // Функция отправки
+    function send() {
+        if (!input.value.trim()) return;
+        room.set({
+            msg: input.value,
+            user: userID,
+            time: Date.now()
+        });
+        input.value = '';
     }
 
-    pc.onicecandidate = e => {
-        if (!e.candidate) document.getElementById('out-key').value = btoa(JSON.stringify(pc.localDescription));
-    };
+    document.getElementById('send').onclick = send;
+    input.onkeypress = (e) => { if(e.key === 'Enter') send() };
 
-    document.getElementById('out-key').onclick = function() {
-        this.select(); document.execCommand('copy'); alert("Скопировано!");
-    };
-
-    document.getElementById('btn-offer').onclick = async () => {
-        setupDC(pc.createDataChannel("chat"));
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-    };
-
-    document.getElementById('btn-answer').onclick = async () => {
-        const val = document.getElementById('in-key').value.trim();
-        try {
-            const data = JSON.parse(atob(val));
-            if (data.type === "offer") {
-                await pc.setRemoteDescription(new RTCSessionDescription(data));
-                const ans = await pc.createAnswer();
-                await pc.setLocalDescription(ans);
-                pc.ondatachannel = e => setupDC(e.channel);
-            } else { await pc.setRemoteDescription(new RTCSessionDescription(data)); }
-        } catch(e) { alert("Ошибка ключа!"); }
-    };
-
-    const send = () => {
-        const i = document.getElementById('msg-input');
-        if (dc && dc.readyState === "open" && i.value) {
-            dc.send(i.value); render(i.value, 'mine'); i.value = "";
-        }
-    };
-    document.getElementById('btn-send').onclick = send;
-
-    function render(t, type) {
-        const d = document.createElement('div'); d.className = `m ${type}`;
-        d.innerText = t; const c = document.getElementById('chat');
-        c.appendChild(d); c.scrollTop = c.scrollHeight;
-    }
+    // Получение данных
+    room.map().once((data) => {
+        if (!data || !data.msg) return;
+        
+        const isMine = data.user === userID;
+        const d = document.createElement('div');
+        d.className = `m ${isMine ? 'mine' : 'others'}`;
+        d.innerText = data.msg;
+        
+        chatDiv.appendChild(d);
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+    });
 </script>
 </body>
 </html>
