@@ -3,84 +3,273 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stealth Bridge v10</title>
+    <title>Stealth Bridge v11</title>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; }
         .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 450px; margin: 0 auto; background: var(--panel); border: 1px solid #232E3C; }
-        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; }
+
+        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; text-align: center; padding: 0 10px; }
+
+        #login { flex: 1; display: flex; flex-direction: column; padding: 20px; gap: 15px; background: #0c121a; }
+        #login h1 { font-size: 18px; margin: 0 0 10px; }
+        .field { display: flex; flex-direction: column; gap: 5px; }
+        .field label { font-size: 13px; color: #9ba7b4; }
+        .field input { background: #242F3D; border: 1px solid #333; color: white; padding: 8px 12px; border-radius: 8px; outline: none; font-size: 15px; }
+        .btn { background: var(--eth); color: white; border: none; padding: 10px 16px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 15px; }
+        .rooms-list { margin-top: 10px; border-top: 1px solid #232E3C; padding-top: 10px; max-height: 200px; overflow-y: auto; }
+        .room-item { padding: 8px 10px; border-radius: 8px; background: #182533; margin-bottom: 6px; cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .room-item span { opacity: 0.7; font-size: 12px; }
+
+        #chatView { flex: 1; display: none; flex-direction: column; height: 100%; }
         #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
-        .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; }
+        .m { padding: 8px 12px; border-radius: 14px; max-width: 85%; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
         .mine { background: #2B5278; align-self: flex-end; }
         .others { background: #182533; align-self: flex-start; border-left: 3px solid var(--eth); }
+        .meta { font-size: 11px; opacity: 0.6; margin-top: 3px; }
+
         .input-box { height: 70px; flex-shrink: 0; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; padding-bottom: env(safe-area-inset-bottom); }
-        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        #msg { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
+        #send { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+
+        .top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .top-bar small { font-size: 11px; color: #9ba7b4; }
+        .top-btn { background: transparent; border: 1px solid #2f3b4a; color: #9ba7b4; border-radius: 8px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
     </style>
 </head>
 <body>
 <div class="app">
-    <header id="status">📡 УЗЕЛ АКТИВИРОВАН</header>
-    <div id="chat"></div>
-    <div class="input-box">
-        <input type="text" id="msg" placeholder="Текст..." autocomplete="off">
-        <button id="send">➤</button>
+    <header id="status">
+        <div class="top-bar">
+            <div>📡 STEALTH BRIDGE</div>
+            <small id="roomInfo">Нет комнаты</small>
+        </div>
+    </header>
+
+    <!-- Окно входа -->
+    <div id="login">
+        <h1>Вход в комнату</h1>
+
+        <div class="field">
+            <label>Ваш ник</label>
+            <input type="text" id="nick" placeholder="Например: Neo" autocomplete="off">
+        </div>
+
+        <div class="field">
+            <label>Название комнаты (создать или войти)</label>
+            <input type="text" id="room" placeholder="Например: my_secret_room" autocomplete="off">
+        </div>
+
+        <button class="btn" id="enterBtn">Войти</button>
+
+        <div class="rooms-list" id="roomsList">
+            <div style="font-size: 13px; margin-bottom: 6px; color:#9ba7b4;">Недавние комнаты</div>
+            <!-- сюда подставятся элементы -->
+        </div>
+    </div>
+
+    <!-- Окно чата -->
+    <div id="chatView">
+        <div id="chat"></div>
+        <div class="input-box">
+            <input type="text" id="msg" placeholder="Текст..." autocomplete="off">
+            <button id="send">➤</button>
+        </div>
     </div>
 </div>
 
 <script>
-    // Маскируем чат под систему уведомлений (не блокируется)
-    const CHANNEL = 'secret_stealth_channel_' + Math.random().toString(36).substr(2, 5); 
-    // Замени эту строку на ОДИНАКОВУЮ на обоих устройствах (например: 'my_private_room_123')
-    const FIXED_ROOM = 'tether_p2p_secure_room_777'; 
-    
-    const API = `https://ntfy.sh{FIXED_ROOM}`;
-    const USER = 'U' + Math.random().toString(36).substr(2, 4);
-
     const chat = document.getElementById('chat');
     const msgInp = document.getElementById('msg');
+    const statusEl = document.getElementById('status');
+    const roomInfo = document.getElementById('roomInfo');
 
-    async function send() {
-        const text = msgInp.value.trim();
-        if (!text) return;
-        msgInp.value = '';
-        render(text, 'mine');
-        
-        await fetch(API, {
-            method: 'POST',
-            body: JSON.stringify({t: text, u: USER, ts: Date.now()})
+    const loginView = document.getElementById('login');
+    const chatView = document.getElementById('chatView');
+    const nickInp = document.getElementById('nick');
+    const roomInp = document.getElementById('room');
+    const enterBtn = document.getElementById('enterBtn');
+    const roomsListEl = document.getElementById('roomsList');
+
+    let API = null;
+    let USER = null;
+    let ROOM = null;
+    let polling = false;
+
+    // --- Работа с локальным списком комнат (только на этом устройстве) ---
+    function loadRecentRooms() {
+        const raw = localStorage.getItem('stealth_recent_rooms') || '[]';
+        let arr;
+        try { arr = JSON.parse(raw); } catch(e) { arr = []; }
+        return Array.isArray(arr) ? arr : [];
+    }
+
+    function saveRecentRoom(name) {
+        if (!name) return;
+        let arr = loadRecentRooms();
+        arr = arr.filter(r => r !== name);
+        arr.unshift(name);
+        if (arr.length > 10) arr = arr.slice(0, 10);
+        localStorage.setItem('stealth_recent_rooms', JSON.stringify(arr));
+        renderRoomsList();
+    }
+
+    function renderRoomsList() {
+        const arr = loadRecentRooms();
+        roomsListEl.innerHTML = '<div style="font-size: 13px; margin-bottom: 6px; color:#9ba7b4;">Недавние комнаты</div>';
+        if (!arr.length) {
+            const d = document.createElement('div');
+            d.style.fontSize = '12px';
+            d.style.opacity = '0.6';
+            d.textContent = 'Пока нет — создайте первую комнату.';
+            roomsListEl.appendChild(d);
+            return;
+        }
+        arr.forEach((name, idx) => {
+            const item = document.createElement('div');
+            item.className = 'room-item';
+            item.innerHTML = `<div>${name}</div><span>#${idx+1}</span>`;
+            item.onclick = () => {
+                roomInp.value = name;
+            };
+            roomsListEl.appendChild(item);
         });
     }
 
-    async function poll() {
-        try {
-            // Опрашиваем "узел-мост" раз в секунду
-            const r = await fetch(`${API}/json?poll=1&since=now`);
-            const lines = (await r.text()).split('\n');
-            lines.forEach(l => {
-                if (!l) return;
-                const data = JSON.parse(l);
-                try {
-                    const payload = JSON.parse(data.message);
-                    if (payload.u !== USER) render(payload.t, 'others');
-                } catch(e) {}
-            });
-        } catch(e) {}
-        setTimeout(poll, 1000);
+    renderRoomsList();
+
+    // --- Вход в комнату ---
+    enterBtn.onclick = () => {
+        const nick = nickInp.value.trim() || 'Anon';
+        const room = roomInp.value.trim();
+        if (!room) {
+            alert('Введите название комнаты');
+            return;
+        }
+        USER = nick + '_' + Math.random().toString(36).substr(2, 4);
+        ROOM = room;
+        API = `https://ntfy.sh/${encodeURIComponent(ROOM)}`;
+
+        saveRecentRoom(ROOM);
+        startChat();
+    };
+
+    // --- Запуск чата ---
+    function startChat() {
+        loginView.style.display = 'none';
+        chatView.style.display = 'flex';
+        roomInfo.textContent = `Комната: ${ROOM}`;
+        statusEl.style.color = '#26A17B';
+
+        chat.innerHTML = '';
+        polling = true;
+        loadHistory().then(() => {
+            pollLoop();
+        });
     }
 
-    function render(txt, side) {
+    // --- Загрузка истории сообщений ---
+    async function loadHistory() {
+        try {
+            // since=all — получаем историю по топику
+            const r = await fetch(`${API}/json?since=all`);
+            const text = await r.text();
+            const lines = text.split('\n');
+            lines.forEach(l => {
+                if (!l) return;
+                try {
+                    const data = JSON.parse(l);
+                    if (!data.message) return;
+                    const payload = JSON.parseSafe(data.message);
+                    if (!payload || !payload.t) return;
+                    render(payload.t, payload.u === USER ? 'mine' : 'others', payload.nick, payload.ts);
+                } catch(e) {}
+            });
+        } catch(e) {
+            console.log('history error', e);
+        }
+    }
+
+    // --- Безопасный JSON.parse ---
+    JSON.parseSafe = function(str) {
+        try { return JSON.parse(str); } catch(e) { return null; }
+    };
+
+    // --- Отправка сообщения ---
+    async function send() {
+        const text = msgInp.value.trim();
+        if (!text || !API) return;
+        msgInp.value = '';
+        const payload = { t: text, u: USER, nick: nickInp.value.trim() || 'Anon', ts: Date.now() };
+        render(text, 'mine', payload.nick, payload.ts);
+
+        try {
+            await fetch(API, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+        } catch(e) {
+            console.log('send error', e);
+        }
+    }
+
+    // --- Polling новых сообщений ---
+    async function pollLoop() {
+        if (!polling || !API) return;
+        try {
+            const r = await fetch(`${API}/json?poll=1&since=now`);
+            const text = await r.text();
+            const lines = text.split('\n');
+            lines.forEach(l => {
+                if (!l) return;
+                const data = JSON.parseSafe(l);
+                if (!data || !data.message) return;
+                const payload = JSON.parseSafe(data.message);
+                if (!payload || !payload.t) return;
+                if (payload.u === USER) return;
+                render(payload.t, 'others', payload.nick, payload.ts);
+            });
+        } catch(e) {
+            console.log('poll error', e);
+        }
+        setTimeout(pollLoop, 1000);
+    }
+
+    // --- Рендер сообщения ---
+    function render(txt, side, nick, ts) {
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.flexDirection = 'column';
+        wrap.style.maxWidth = '100%';
+
         const d = document.createElement('div');
         d.className = 'm ' + side;
         d.innerText = txt;
-        chat.appendChild(d);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const name = nick || (side === 'mine' ? 'Вы' : 'Гость');
+        const time = ts ? new Date(ts).toLocaleTimeString() : '';
+        meta.textContent = `${name} • ${time}`;
+
+        if (side === 'mine') {
+            wrap.style.alignItems = 'flex-end';
+        } else {
+            wrap.style.alignItems = 'flex-start';
+        }
+
+        wrap.appendChild(d);
+        wrap.appendChild(meta);
+
+        chat.appendChild(wrap);
         chat.scrollTop = chat.scrollHeight;
     }
 
+    // --- Обработчики ввода ---
     document.getElementById('send').onclick = send;
-    msgInp.onkeypress = (e) => { if(e.key==='Enter') send(); };
-    poll();
+    msgInp.onkeypress = (e) => { if (e.key === 'Enter') send(); };
+
 </script>
 </body>
 </html>
