@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Stealth Node</title>
+    <style>
+        :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; display: flex; justify-content: center; padding: 15px; margin: 0; }
+        .card { background: var(--panel); padding: 20px; border-radius: 12px; width: 100%; max-width: 380px; border: 1px solid #232E3C; display: flex; flex-direction: column; }
+        header { color: var(--eth); font-weight: bold; text-align: center; margin-bottom: 20px; font-size: 18px; text-transform: uppercase; }
+        textarea { width: 100%; background: #0c121a; border: 1px solid #333; color: #00ff00; border-radius: 8px; padding: 10px; font-size: 10px; height: 70px; box-sizing: border-box; resize: none; outline: none; font-family: monospace; cursor: pointer; }
+        textarea:focus { border-color: var(--eth); }
+        button { width: 100%; background: var(--eth); color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 8px 0; }
+        #chat { height: 250px; overflow-y: auto; background: #0c121a; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #232E3C; display: none; flex-direction: column; gap: 8px; }
+        .m { padding: 8px 12px; border-radius: 10px; max-width: 85%; font-size: 14px; }
+        .mine { background: #2B5278; align-self: flex-end; }
+        .others { background: #182533; align-self: flex-start; }
+        .input-group { display: none; gap: 8px; }
+        input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 12px; border-radius: 8px; outline: none; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <header id="status">P2P NODE READY</header>
+    <div id="setup">
+        <button id="btn-offer">1. СГЕНЕРИРОВАТЬ КЛЮЧ</button>
+        <textarea id="out-key" readonly placeholder="Твой ключ..."></textarea>
+        <textarea id="in-key" style="margin-top:10px" placeholder="Вставь ключ друга..."></textarea>
+        <button id="btn-answer">2. ПОДКЛЮЧИТЬСЯ</button>
+    </div>
+    <div id="chat"></div>
+    <div id="input-group" class="input-group">
+        <input type="text" id="msg-input" placeholder="Сообщение...">
+        <button id="btn-send" style="width: 60px;">-></button>
+    </div>
+</div>
+
+<script>
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:://google.com" }] });
+    let dc;
+
+    function setupDC(channel) {
+        dc = channel;
+        dc.onopen = () => {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('chat').style.display = 'flex';
+            document.getElementById('input-group').style.display = 'flex';
+            document.getElementById('status').innerText = "ONLINE";
+        };
+        dc.onmessage = e => render(e.data, 'others');
+    }
+
+    pc.onicecandidate = e => {
+        if (!e.candidate) document.getElementById('out-key').value = btoa(JSON.stringify(pc.localDescription));
+    };
+
+    document.getElementById('out-key').onclick = function() {
+        this.select(); document.execCommand('copy'); alert("Скопировано!");
+    };
+
+    document.getElementById('btn-offer').onclick = async () => {
+        setupDC(pc.createDataChannel("chat"));
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+    };
+
+    document.getElementById('btn-answer').onclick = async () => {
+        const val = document.getElementById('in-key').value.trim();
+        try {
+            const data = JSON.parse(atob(val));
+            if (data.type === "offer") {
+                await pc.setRemoteDescription(new RTCSessionDescription(data));
+                const ans = await pc.createAnswer();
+                await pc.setLocalDescription(ans);
+                pc.ondatachannel = e => setupDC(e.channel);
+            } else { await pc.setRemoteDescription(new RTCSessionDescription(data)); }
+        } catch(e) { alert("Ошибка ключа!"); }
+    };
+
+    const send = () => {
+        const i = document.getElementById('msg-input');
+        if (dc && dc.readyState === "open" && i.value) {
+            dc.send(i.value); render(i.value, 'mine'); i.value = "";
+        }
+    };
+    document.getElementById('btn-send').onclick = send;
+
+    function render(t, type) {
+        const d = document.createElement('div'); d.className = `m ${type}`;
+        d.innerText = t; const c = document.getElementById('chat');
+        c.appendChild(d); c.scrollTop = c.scrollHeight;
+    }
+</script>
+</body>
+</html>
