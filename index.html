@@ -3,71 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stealth P2P Bridge</title>
+    <title>Stealth Bridge v10</title>
     <style>
         :root { --eth: #26A17B; --bg: #0E1621; --panel: #17212B; --text: #F5F5F5; }
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: sans-serif; overflow: hidden; }
-        
-        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 450px; margin: 0 auto; background: var(--panel); position: relative; }
-        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; letter-spacing: 1px; }
-        
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 450px; margin: 0 auto; background: var(--panel); border: 1px solid #232E3C; }
+        header { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--eth); font-weight: bold; border-bottom: 1px solid #232E3C; font-size: 13px; }
         #chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #0c121a; }
         .m { padding: 10px 14px; border-radius: 14px; max-width: 85%; font-size: 16px; line-height: 1.4; word-wrap: break-word; }
-        .mine { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .others { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border-left: 3px solid var(--eth); }
-
+        .mine { background: #2B5278; align-self: flex-end; }
+        .others { background: #182533; align-self: flex-start; border-left: 3px solid var(--eth); }
         .input-box { height: 70px; flex-shrink: 0; padding: 10px; background: var(--panel); display: flex; gap: 10px; border-top: 1px solid #232E3C; padding-bottom: env(safe-area-inset-bottom); }
         input { flex: 1; background: #242F3D; border: 1px solid #333; color: white; padding: 0 15px; border-radius: 10px; outline: none; font-size: 16px; }
-        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:active { opacity: 0.7; }
+        button { background: var(--eth); color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 <div class="app">
-    <header id="status">📡 ПОИСК УЗЛА...</header>
+    <header id="status">📡 УЗЕЛ АКТИВИРОВАН</header>
     <div id="chat"></div>
-    <div class="input-area input-box">
-        <input type="text" id="msg" placeholder="Написать..." autocomplete="off">
+    <div class="input-box">
+        <input type="text" id="msg" placeholder="Текст..." autocomplete="off">
         <button id="send">➤</button>
     </div>
 </div>
 
 <script>
-    // Используем чистый WebSocket (встроен в браузер, никаких библиотек не надо)
-    // Мы подключаемся к анонимному "туннелю"
-    const ROOM = 'tether_p2p_global_v9'; // Смени это имя на любое свое для секретности
-    const socket = new WebSocket(`wss://://piesocket.com`);
+    // Маскируем чат под систему уведомлений (не блокируется)
+    const CHANNEL = 'secret_stealth_channel_' + Math.random().toString(36).substr(2, 5); 
+    // Замени эту строку на ОДИНАКОВУЮ на обоих устройствах (например: 'my_private_room_123')
+    const FIXED_ROOM = 'tether_p2p_secure_room_777'; 
+    
+    const API = `https://ntfy.sh{FIXED_ROOM}`;
     const USER = 'U' + Math.random().toString(36).substr(2, 4);
 
     const chat = document.getElementById('chat');
     const msgInp = document.getElementById('msg');
-    const status = document.getElementById('status');
 
-    socket.onopen = () => {
-        status.innerText = "📡 STEALTH ONLINE";
-        status.style.color = "#26A17B";
-    };
-
-    socket.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            // Если сообщение пришло в нашу комнату и не от нас
-            if (data.room === ROOM && data.u !== USER) {
-                render(data.t, 'others');
-            }
-        } catch(e) {}
-    };
-
-    function send() {
-        const t = msgInp.value.trim();
-        if (!t || socket.readyState !== WebSocket.OPEN) return;
-        
-        const payload = JSON.stringify({ room: ROOM, t: t, u: USER });
-        socket.send(payload);
-        
-        render(t, 'mine');
+    async function send() {
+        const text = msgInp.value.trim();
+        if (!text) return;
         msgInp.value = '';
+        render(text, 'mine');
+        
+        await fetch(API, {
+            method: 'POST',
+            body: JSON.stringify({t: text, u: USER, ts: Date.now()})
+        });
+    }
+
+    async function poll() {
+        try {
+            // Опрашиваем "узел-мост" раз в секунду
+            const r = await fetch(`${API}/json?poll=1&since=now`);
+            const lines = (await r.text()).split('\n');
+            lines.forEach(l => {
+                if (!l) return;
+                const data = JSON.parse(l);
+                try {
+                    const payload = JSON.parse(data.message);
+                    if (payload.u !== USER) render(payload.t, 'others');
+                } catch(e) {}
+            });
+        } catch(e) {}
+        setTimeout(poll, 1000);
     }
 
     function render(txt, side) {
@@ -79,10 +79,8 @@
     }
 
     document.getElementById('send').onclick = send;
-    msgInp.onkeypress = (e) => { if (e.key === 'Enter') send(); };
-    
-    // Авто-реконнект при смене сети (с 4G на Wi-Fi и обратно)
-    socket.onclose = () => { status.innerText = "📡 ПЕРЕЗАГРУЗКА..."; setTimeout(() => location.reload(), 2000); };
+    msgInp.onkeypress = (e) => { if(e.key==='Enter') send(); };
+    poll();
 </script>
 </body>
 </html>
